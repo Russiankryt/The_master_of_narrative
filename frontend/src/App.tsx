@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { BrowserRouter as Router, Route, Routes, useNavigate } from 'react-router-dom';
 import './App.css';
@@ -13,7 +13,13 @@ interface FormState {
 interface ApiResponse {
   message?: string;
   error?: string;
-  access_token?: string; 
+  access_token?: string;
+}
+
+interface ChatMessage {
+  text: string;
+  isUser: boolean;
+  timestamp?: string;
 }
 
 function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
@@ -42,6 +48,25 @@ function handleMouseLeave(e: React.MouseEvent<HTMLDivElement>) {
   el.style.setProperty('--ty', `0px`);
 }
 
+function parseJwt(token: string | null) {
+  if (!token) return null;
+  try {
+    const base64Url = token.split('.')[1];
+    if (!base64Url) return null;
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error('parseJwt error:', e);
+    return null;
+  }
+}
+
 const LoginPage = () => {
   const [formState, setFormState] = useState<FormState>({
     username: '',
@@ -51,37 +76,41 @@ const LoginPage = () => {
   });
   const navigate = useNavigate();
 
-const handleLogin = async () => {
-  setFormState((prev) => ({ ...prev, loading: true }));
-  try {
-    const response = await axios.post<ApiResponse>('http://localhost:5000/login', {
-      username: formState.username,
-      password: formState.password,
-    });
-    if (response.data.access_token) {
-      localStorage.setItem('access_token', response.data.access_token);
-      setFormState((prev) => ({
-        ...prev,
-        message: '',
-        loading: false,
-      }));
-      navigate('/narrative');
-    } else {
-      setFormState((prev) => ({
-        ...prev,
-        message: 'Ошибка: Токен не получен, войдите в учетную запись',
-        loading: false,
-      }));
+  const handleLogin = useCallback(async () => {
+    if (formState.loading) return;
+    setFormState((prev) => ({ ...prev, loading: true }));
+    try {
+      const response = await axios.post<ApiResponse>('http://localhost:5000/login', {
+        username: formState.username,
+        password: formState.password,
+      });
+      if (response.data.access_token) {
+        localStorage.setItem('access_token', response.data.access_token);
+        localStorage.setItem('username', formState.username);
+        setFormState((prev) => ({
+          ...prev,
+          message: '',
+          loading: false,
+        }));
+        navigate('/narrative');
+      } else {
+        setFormState((prev) => ({
+          ...prev,
+          message: 'Ошибка: Токен не получен, войдите в учетную запись',
+          loading: false,
+        }));
+      }
+    } catch (error) {
+      const errorMessage = (error as any)?.response?.data?.error || 'Не удалось войти';
+      setTimeout(() => {
+        setFormState((prev) => ({
+          ...prev,
+          message: `Ошибка: ${errorMessage}`,
+          loading: false,
+        }));
+      }, 1000);
     }
-  } catch (error) {
-    const errorMessage = (error as any)?.response?.data?.error || 'Не удалось войти';
-    setFormState((prev) => ({
-      ...prev,
-      message: `Ошибка: ${errorMessage}`,
-      loading: false,
-    }));
-  }
-};
+  }, [formState.loading, formState.username, formState.password, navigate]);
 
   const handleRegisterRedirect = () => {
     navigate('/register');
@@ -165,13 +194,15 @@ const RegisterPage = () => {
   });
   const navigate = useNavigate();
 
-  const handleRegister = async () => {
+  const handleRegister = useCallback(async () => {
+    if (formState.loading) return;
     setFormState((prev) => ({ ...prev, loading: true }));
     try {
       const response = await axios.post<ApiResponse>('http://localhost:5000/register', {
         username: formState.username,
         password: formState.password,
       });
+      localStorage.setItem('username', formState.username);
       setFormState((prev) => ({
         ...prev,
         message: `Успех: ${response.data.message}`,
@@ -180,13 +211,15 @@ const RegisterPage = () => {
       navigate('/');
     } catch (error) {
       const errorMessage = (error as any)?.response?.data?.error || 'Не удалось';
-      setFormState((prev) => ({
-        ...prev,
-        message: `Ошибка: ${errorMessage}`,
-        loading: false,
-      }));
+      setTimeout(() => {
+        setFormState((prev) => ({
+          ...prev,
+          message: `Ошибка: ${errorMessage}`,
+          loading: false,
+        }));
+      }, 1000);
     }
-  };
+  }, [formState.loading, formState.username, formState.password, navigate]);
 
   const handleLoginRedirect = () => {
     navigate('/');
@@ -253,33 +286,82 @@ const RegisterPage = () => {
 };
 
 const NarrativePage = () => {
-  const [sessions, _setSessions] = useState<string[]>(['Сессия 1', 'Сессия 2']);
-  const [messages, setMessages] = useState<{ text: string; isUser: boolean }[]>([]);
+  const [sessions, _setSessions] = useState<string[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
+  const [username, setUsername] = useState<string>(localStorage.getItem('username') || '');
+  const [sessionId, setSessionId] = useState<number | null>(null);
 
-const handleSendMessage = async () => {
-  if (!input.trim()) return;
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
 
-  const token = localStorage.getItem('access_token');
-  if (!token) {
-    setMessages((prev) => [...prev, { text: 'Ошибка: Вы не авторизованы. Пожалуйста, войдите.', isUser: false }]);
-    return;
-  }
+    try {
+      const payload = parseJwt(token);
+      if (payload) {
+        const nameFromToken =
+          payload.sub || payload.identity || payload.username || payload.name || payload.user;
+        if (nameFromToken && nameFromToken !== username) {
+          setUsername(nameFromToken);
+          localStorage.setItem('username', nameFromToken);
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка декодирования JWT:', error);
+    }
+  }, []); 
 
-  setMessages((prev) => [...prev, { text: input, isUser: true }]);
-  setInput('');
-  try {
-    const response = await axios.post(
-      'http://localhost:5000/api/chat',
-      { message: input },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    setMessages((prev) => [...prev, { text: response.data.response, isUser: false }]);
-  } catch (error) {
-    const errMsg = (error as any)?.response?.data?.msg || 'Не удалось отправить сообщение';
-    setMessages((prev) => [...prev, { text: `Ошибка: ${errMsg}`, isUser: false }]);
-  }
-};
+  useEffect(() => {
+    const loadSession = async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+
+      try {
+        const response = await axios.get(
+          'http://localhost:5000/api/sessions/current',
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setSessionId(response.data.sessionId);
+        setMessages(response.data.messages.map((msg: any) => ({
+          text: msg.text,
+          isUser: msg.isUser,
+          timestamp: msg.timestamp,
+        })));
+      } catch (error) {
+        console.error('Ошибка загрузки сессии:', error);
+        setMessages([]);
+      }
+    };
+
+    loadSession();
+  }, []); 
+
+  const handleSendMessage = useCallback(async () => {
+    if (!input.trim()) return;
+
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      setMessages((prev) => [...prev, { text: 'Ошибка: Вы не авторизованы. Пожалуйста, войдите.', isUser: false }]);
+      return;
+    }
+
+    setMessages((prev) => [...prev, { text: input, isUser: true }]);
+    const tempInput = input;
+    setInput('');
+    try {
+      const response = await axios.post(
+        'http://localhost:5000/api/chat',
+        { message: tempInput, sessionId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setMessages((prev) => [...prev, { text: response.data.response, isUser: false }]);
+      setSessionId(response.data.sessionId);
+    } catch (error) {
+      const errMsg = (error as any)?.response?.data?.error || 'Не удалось отправить сообщение';
+      setMessages((prev) => [...prev, { text: `Ошибка: ${errMsg}`, isUser: false }]);
+    }
+  }, [input, sessionId]);
+
   return (
     <div className="lilith-engine">
       <div className="narrative-interface">
@@ -294,6 +376,11 @@ const handleSendMessage = async () => {
               <li key={index}>{session}</li>
             ))}
           </ul>
+          <div className="sidebar-footer">
+            <div className="user-profile">
+              <span>{username || 'Пользователь'}</span>
+            </div>
+          </div>
         </div>
         <div
           className="chat-wrapper"
@@ -307,15 +394,19 @@ const handleSendMessage = async () => {
               </div>
             ))}
           </div>
-          <div className="chat-input">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-              placeholder="Напишите сообщение..."
-            />
-            <button onClick={handleSendMessage}>Отправить</button>
+          <div className="chat-input-wrapper">
+            <div className="chat-input">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                placeholder="Напишите сообщение..."
+              />
+              <button className="send-button" onClick={handleSendMessage}>
+                ↑
+              </button>
+            </div>
           </div>
         </div>
       </div>
