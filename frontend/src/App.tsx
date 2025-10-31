@@ -195,31 +195,39 @@ const RegisterPage = () => {
   const navigate = useNavigate();
 
   const handleRegister = useCallback(async () => {
-    if (formState.loading) return;
-    setFormState((prev) => ({ ...prev, loading: true }));
-    try {
-      const response = await axios.post<ApiResponse>('http://localhost:5000/register', {
-        username: formState.username,
-        password: formState.password,
-      });
-      localStorage.setItem('username', formState.username);
+  if (formState.loading) return;
+  setFormState((prev) => ({ ...prev, loading: true }));
+
+  try {
+    const response = await axios.post<ApiResponse>('http://localhost:5000/register', {
+      username: formState.username,
+      password: formState.password,
+    });
+
+    localStorage.setItem('username', formState.username);
+
+    setFormState((prev) => ({
+      ...prev,
+      message: `Успех: ${response.data.message}`,
+      loading: false,
+    }));
+
+    setTimeout(() => {
+      navigate('/', { replace: true });
+    }, 2000);
+
+  } catch (error) {
+    const errorMessage = (error as any)?.response?.data?.error || 'Не удалось';
+    setTimeout(() => {
       setFormState((prev) => ({
         ...prev,
-        message: `Успех: ${response.data.message}`,
+        message: `Ошибка: ${errorMessage}`,
         loading: false,
       }));
-      navigate('/');
-    } catch (error) {
-      const errorMessage = (error as any)?.response?.data?.error || 'Не удалось';
-      setTimeout(() => {
-        setFormState((prev) => ({
-          ...prev,
-          message: `Ошибка: ${errorMessage}`,
-          loading: false,
-        }));
-      }, 1000);
-    }
-  }, [formState.loading, formState.username, formState.password, navigate]);
+    }, 1000);
+  }
+}, [formState.loading, formState.username, formState.password, navigate]);
+
 
   const handleLoginRedirect = () => {
     navigate('/');
