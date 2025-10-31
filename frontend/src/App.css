@@ -300,42 +300,27 @@ body::before {
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
+.sidebar ul::-webkit-scrollbar,
+.chat-messages::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.sidebar ul,
+.chat-messages {
+  scrollbar-width: none;
+  -ms-overflow-style: none; 
+}
+
 .sidebar ul {
-  list-style: none;
-  padding: 6px;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
   overflow-y: auto;
   max-height: calc(100vh - 220px);
-  flex: 1; 
 }
 
-.sidebar ul::-webkit-scrollbar { width: 8px; }
-.sidebar ul::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.04); border-radius: 999px; }
-.sidebar ul::-webkit-scrollbar-track { background: transparent; }
-
-.sidebar ul li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background-color .12s ease, transform .08s ease, box-shadow .08s ease;
-  position: relative;
-  color: rgba(255,255,255,0.95);
-  user-select: none;
-}
-
-.sidebar ul li:hover {
-  background: rgba(255,255,255,0.02);
-  transform: translateY(-1px);
-}
-
-.sidebar ul li:active {
-  transform: translateY(0);
+.chat-messages {
+  overflow-y: auto;
+  max-height: calc(100% - 80px);
 }
 
 .sidebar-footer { 
@@ -423,7 +408,7 @@ body::before {
 .chat-input {
   display: flex;
   gap: 10px;
-  height: 48px; 
+  height: 56px; 
   align-items: center;
   background: rgba(255, 255, 255, 0.02);
   backdrop-filter: blur(10px);
@@ -432,7 +417,7 @@ body::before {
   border-radius: 999px;
   padding: 0 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  max-width: 800px; 
+  max-width: 768px; 
   width: 100%;
 }
 
@@ -508,10 +493,6 @@ body::before {
     0 0 0 1px rgba(255, 255, 255, 0.05) inset;
 }
 
-.chat-input .send-button:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
-}
 
 
 @media (max-width: 480px) {

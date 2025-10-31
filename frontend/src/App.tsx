@@ -195,39 +195,37 @@ const RegisterPage = () => {
   const navigate = useNavigate();
 
   const handleRegister = useCallback(async () => {
-  if (formState.loading) return;
-  setFormState((prev) => ({ ...prev, loading: true }));
+    if (formState.loading) return;
+    setFormState((prev) => ({ ...prev, loading: true }));
 
-  try {
-    const response = await axios.post<ApiResponse>('http://localhost:5000/register', {
-      username: formState.username,
-      password: formState.password,
-    });
+    try {
+      const response = await axios.post<ApiResponse>('http://localhost:5000/register', {
+        username: formState.username,
+        password: formState.password,
+      });
 
-    localStorage.setItem('username', formState.username);
+      localStorage.setItem('username', formState.username);
 
-    setFormState((prev) => ({
-      ...prev,
-      message: `Успех: ${response.data.message}`,
-      loading: false,
-    }));
-
-    setTimeout(() => {
-      navigate('/', { replace: true });
-    }, 2000);
-
-  } catch (error) {
-    const errorMessage = (error as any)?.response?.data?.error || 'Не удалось';
-    setTimeout(() => {
       setFormState((prev) => ({
         ...prev,
-        message: `Ошибка: ${errorMessage}`,
+        message: `Успех: ${response.data.message}`,
         loading: false,
       }));
-    }, 1000);
-  }
-}, [formState.loading, formState.username, formState.password, navigate]);
 
+      setTimeout(() => {
+        navigate('/', { replace: true });
+      }, 2000);
+    } catch (error) {
+      const errorMessage = (error as any)?.response?.data?.error || 'Не удалось';
+      setTimeout(() => {
+        setFormState((prev) => ({
+          ...prev,
+          message: `Ошибка: ${errorMessage}`,
+          loading: false,
+        }));
+      }, 1000);
+    }
+  }, [formState.loading, formState.username, formState.password, navigate]);
 
   const handleLoginRedirect = () => {
     navigate('/');
@@ -317,7 +315,7 @@ const NarrativePage = () => {
     } catch (error) {
       console.error('Ошибка декодирования JWT:', error);
     }
-  }, []); 
+  }, []);
 
   useEffect(() => {
     const loadSession = async () => {
@@ -325,16 +323,17 @@ const NarrativePage = () => {
       if (!token) return;
 
       try {
-        const response = await axios.get(
-          'http://localhost:5000/api/sessions/current',
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        const response = await axios.get('http://localhost:5000/api/sessions/current', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         setSessionId(response.data.sessionId);
-        setMessages(response.data.messages.map((msg: any) => ({
-          text: msg.text,
-          isUser: msg.isUser,
-          timestamp: msg.timestamp,
-        })));
+        setMessages(
+          response.data.messages.map((msg: any) => ({
+            text: msg.text,
+            isUser: msg.isUser,
+            timestamp: msg.timestamp,
+          }))
+        );
       } catch (error) {
         console.error('Ошибка загрузки сессии:', error);
         setMessages([]);
@@ -342,14 +341,17 @@ const NarrativePage = () => {
     };
 
     loadSession();
-  }, []); 
+  }, []);
 
   const handleSendMessage = useCallback(async () => {
     if (!input.trim()) return;
 
     const token = localStorage.getItem('access_token');
     if (!token) {
-      setMessages((prev) => [...prev, { text: 'Ошибка: Вы не авторизованы. Пожалуйста, войдите.', isUser: false }]);
+      setMessages((prev) => [
+        ...prev,
+        { text: 'Ошибка: Вы не авторизованы. Пожалуйста, войдите.', isUser: false },
+      ]);
       return;
     }
 
@@ -373,11 +375,7 @@ const NarrativePage = () => {
   return (
     <div className="lilith-engine">
       <div className="narrative-interface">
-        <div
-          className="sidebar"
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-        >
+        <div className="sidebar" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
           <h3>Сессии</h3>
           <ul>
             {sessions.map((session, index) => (
@@ -390,14 +388,13 @@ const NarrativePage = () => {
             </div>
           </div>
         </div>
-        <div
-          className="chat-wrapper"
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-        >
+        <div className="chat-wrapper" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
           <div className="chat-messages">
             {messages.map((msg, index) => (
-              <div key={index} className={`message ${msg.isUser ? 'user-message' : 'lilit-message'}`}>
+              <div
+                key={index}
+                className={`message ${msg.isUser ? 'user-message' : 'lilit-message'}`}
+              >
                 {msg.text}
               </div>
             ))}
@@ -412,7 +409,20 @@ const NarrativePage = () => {
                 placeholder="Напишите сообщение..."
               />
               <button className="send-button" onClick={handleSendMessage}>
-                ↑
+               <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 5l0 14"/>
+                  <path d="M18 11l-6-6"/>
+                  <path d="M6 11l6-6"/>
+                </svg>
               </button>
             </div>
           </div>
